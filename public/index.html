@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Charades Pro</title>
+    <meta charset="utf-8">
+    <!-- Viewport for mobile: prevents zooming, uses full width -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <!-- iOS Web App Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2D3436">
+
+    <style>
+        :root {
+            --primary: #6C5CE7;
+            --primary-dark: #5649c0;
+            --secondary: #00CEC9;
+            --dark: #2D3436;
+            --surface: #3a4244;
+            --light: #DFE6E9;
+            --danger: #ff7675;
+            --success: #00b894;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background: var(--dark);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            /* Handle iPhone Safe Areas */
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Full screen containers */
+        .screen {
+            display: none;
+            padding: 20px;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            flex-grow: 1;
+            animation: fadeIn 0.3s ease;
+        }
+        .active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Typography */
+        h1, h2, h3 { color: var(--secondary); margin: 0 0 15px 0; }
+        h1 { font-size: 2rem; }
+        
+        /* Inputs: 16px prevents iOS zoom on focus */
+        input, select, textarea {
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid #444;
+            width: 100%;
+            margin-bottom: 15px;
+            font-size: 16px; 
+            background: var(--surface);
+            color: white;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus { border-color: var(--secondary); }
+
+        /* Buttons: Big Touch Targets */
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 12px;
+            touch-action: manipulation;
+            transition: transform 0.1s, background 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn:disabled { background: #555; opacity: 0.7; transform: none; }
+        .btn-sec { background: #555; }
+        .btn-success { background: var(--success); }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 16px;
+            width: 100%;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Specific Elements */
+        .big-word {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--secondary);
+            margin: 20px 0;
+            line-height: 1.2;
+            word-wrap: break-word;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .timer-box {
+            font-size: 5rem;
+            font-weight: 900;
+            color: var(--danger);
+            font-variant-numeric: tabular-nums; /* Monospace numbers prevent jitter */
+        }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 1.1rem;
+        }
+        .score-row:last-child { border-bottom: none; }
+
+        /* Helper Links */
+        .link { color: #888; text-decoration: underline; padding: 10px; display: block; margin-top: 10px; }
+        
+        /* Grid for Team Inputs */
+        #team-inputs { width: 100%; display: grid; gap: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. LANDING PAGE -->
+    <div id="screen-landing" class="screen active">
+        <h1>🎭 Family Charades</h1>
+        <p style="color: #ccc; margin-bottom: 30px;">The Ultimate Party Game</p>
+        
+        <button class="btn" onclick="showScreen('screen-create')">👑 Start New Game (Host)</button>
+        <button class="btn btn-sec" onclick="showScreen('screen-join')">👋 Join Existing Game</button>
+        
+        <div onclick="showScreen('screen-admin-login')" class="link">Admin Login</div>
+    </div>
+
+    <!-- 2. ADMIN -->
+    <div id="screen-admin-login" class="screen">
+        <h2>Admin Login</h2>
+        <input type="text" id="adminUser" placeholder="Username (admin)" autocapitalize="none">
+        <input type="password" id="adminPass" placeholder="Password (charades123)">
+        <button class="btn" onclick="adminLogin()">Login</button>
+        <button class="btn btn-sec" onclick="showScreen('screen-landing')">Back</button>
+    </div>
+
+    <div id="screen-admin-dash" class="screen">
+        <h2>Add Words</h2>
+        <div class="card">
+            <select id="addType">
+                <option value="Movie">Movie</option>
+                <option value="Song">Song</option>
+            </select>
+            <select id="addDiff">
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+            </select>
+            <textarea id="addWords" rows="4" placeholder="Words separated by comma (e.g. Titanic, Matrix, Shrek)"></textarea>
+        </div>
+        <button class="btn btn-success" onclick="addWords()">Add Words</button>
+        <p id="admin-msg" style="color: var(--success); height: 20px;"></p>
+        <button class="btn btn-sec" onclick="showScreen('screen-landing')">Logout</button>
+    </div>
+
+    <!-- 3. CREATE ROOM (LEAD) -->
+    <div id="screen-create" class="screen">
+        <h2>Create Room</h2>
+        <input type="text" id="c-roomName" placeholder="Room Name (e.g. Smith Family)">
+        
+        <label style="align-self: flex-start; margin-bottom: 5px; color:#aaa;">Game Type</label>
+        <select id="c-gameType">
+            <option value="Both">Movies & Songs</option>
+            <option value="Movie">Movies Only</option>
+            <option value="Song">Songs Only</option>
+        </select>
+        
+        <label style="align-self: flex-start; margin-bottom: 5px; color:#aaa;">Number of Teams</label>
+        <select id="c-teams" onchange="updateTeamInputs()">
+            <option value="2">2 Teams</option>
+            <option value="3">3 Teams</option>
+            <option value="4">4 Teams</option>
+        </select>
+        
+        <div id="team-inputs">
+            <input type="text" id="team1" placeholder="Team 1 Name" value="Team A">
+            <input type="text" id="team2" placeholder="Team 2 Name" value="Team B">
+        </div>
+        
+        <label style="align-self: flex-start; margin: 10px 0 5px; color:#aaa;">Timer (Seconds)</label>
+        <input type="number" id="c-duration" placeholder="60" value="60">
+        
+        <button class="btn" onclick="createRoom()">Create Room</button>
+        <button class="btn btn-sec" onclick="showScreen('screen-landing')">Back</button>
+    </div>
+
+    <!-- 4. JOIN ROOM -->
+    <div id="screen-join" class="screen">
+        <h2>Join Game</h2>
+        <input type="text" id="j-code" placeholder="Room Code (4 Letters)" autocapitalize="characters" maxlength="4">
+        <input type="text" id="j-name" placeholder="Your Name">
+        <button class="btn" onclick="fetchRoomInfo()">Next</button>
+        <button class="btn btn-sec" onclick="showScreen('screen-landing')">Back</button>
+    </div>
+
+    <!-- 4b. PICK TEAM -->
+    <div id="screen-pick-team" class="screen">
+        <h2>Pick Your Team</h2>
+        <p style="color:#aaa;">Who are you playing with?</p>
+        <div id="team-buttons" style="width: 100%;"></div>
+    </div>
+
+    <!-- 5. LOBBY / MAIN GAME -->
+    <div id="screen-game" class="screen">
+        <h2 id="g-roomName" style="font-size: 1.5rem;">Room</h2>
+        
+        <div class="card">
+            <h3 style="border-bottom: 1px solid #555; padding-bottom: 10px;">🏆 Scoreboard</h3>
+            <div id="scoreboard"></div>
+        </div>
+
+        <div id="game-status-area" style="width: 100%;">
+            <!-- This changes based on state -->
+            <button class="btn" id="btn-myturn" onclick="startTurnSetup()">It's My Turn!</button>
+            <p id="status-msg" style="color: #aaa; margin-top: 20px;">Waiting for someone to start...</p>
+        </div>
+    </div>
+
+    <!-- 6. TURN SETUP (Actor Only) -->
+    <div id="screen-setup" class="screen">
+        <h2>Your Turn!</h2>
+        <p>Customize your challenge.</p>
+        
+        <div class="card">
+            <label style="display:block; text-align:left; color:#aaa; margin-bottom:5px;">Category</label>
+            <select id="t-type">
+                <option value="Movie">🎬 Movie</option>
+                <option value="Song">🎵 Song</option>
+            </select>
+            
+            <label style="display:block; text-align:left; color:#aaa; margin-bottom:5px;">Difficulty</label>
+            <select id="t-diff">
+                <option value="Easy">🟢 Easy (x0.6 Pts)</option>
+                <option value="Medium">🟡 Medium (x0.8 Pts)</option>
+                <option value="Hard">🔴 Hard (x1.0 Pts)</option>
+            </select>
+        </div>
+        
+        <button class="btn" onclick="confirmOptions()">Get Word</button>
+        <button class="btn btn-sec" onclick="showScreen('screen-game')">Cancel</button>
+    </div>
+
+    <!-- 7. ACTOR SCREEN -->
+    <div id="screen-actor" class="screen">
+        <h3>You are acting!</h3>
+        <p style="color:#aaa; font-size: 0.9rem;">Don't say a word!</p>
+        
+        <div class="card" style="border: 2px solid var(--secondary);">
+            <div id="actor-word" class="big-word">LOADING...</div>
+            <p id="actor-meta" style="background: rgba(255,255,255,0.1); display: inline-block; padding: 5px 10px; border-radius: 5px;"></p>
+        </div>
+        
+        <button class="btn btn-success" id="btn-start-act" onclick="startActing()">▶️ START TIMER</button>
+        
+        <div id="actor-controls" style="display:none; width: 100%;">
+            <div class="timer-box" id="actor-timer">60</div>
+            <button class="btn btn-success" onclick="wordFound()" style="padding: 25px; font-size: 1.5rem;">✅ GOT IT!</button>
+        </div>
+    </div>
+
+    <!-- 8. GUESSER SCREEN -->
+    <div id="screen-guesser" class="screen">
+        <h2 id="guesser-status">Gamer is ready...</h2>
+        <div class="timer-box" id="guesser-timer" style="display:none; margin-top: 30px;">60</div>
+        <div id="guesser-anim" style="font-size: 4rem; margin-top: 20px;">🤔</div>
+    </div>
+
+    <!-- LOGIC -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        // Socket Connection with error handling
+        let socket;
+        try {
+            socket = io();
+        } catch (e) {
+            console.error("Socket error", e);
+            alert("Connection Error. Please refresh.");
+        }
+        
+        let myRoomCode = "";
+        let myName = "";
+        let myTeam = "";
+
+        // --- NAVIGATION ---
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => {
+                s.classList.remove('active');
+                s.style.display = 'none'; // Ensure proper hiding
+            });
+            const active = document.getElementById(id);
+            active.style.display = 'flex'; // Important for Flex layout
+            setTimeout(() => active.classList.add('active'), 10);
+        }
+
+        // --- ADMIN ---
+        async function adminLogin() {
+            const u = document.getElementById('adminUser').value;
+            const p = document.getElementById('adminPass').value;
+            try {
+                const res = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                const data = await res.json();
+                if(data.success) showScreen('screen-admin-dash');
+                else alert("Invalid Login");
+            } catch(e) { alert("Server Error"); }
+        }
+
+        async function addWords() {
+            const type = document.getElementById('addType').value;
+            const diff = document.getElementById('addDiff').value;
+            const wordsRaw = document.getElementById('addWords').value;
+            
+            try {
+                await fetch('/admin/add-words', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ type, difficulty: diff, wordsRaw })
+                });
+                document.getElementById('admin-msg').innerText = "✅ Words Added!";
+                document.getElementById('addWords').value = ""; // Clear input
+                setTimeout(() => document.getElementById('admin-msg').innerText = "", 2000);
+            } catch(e) { alert("Error adding words"); }
+        }
+
+        // --- CREATE ROOM ---
+        function updateTeamInputs() {
+            const count = document.getElementById('c-teams').value;
+            const div = document.getElementById('team-inputs');
+            div.innerHTML = '';
+            for(let i=1; i<=count; i++) {
+                div.innerHTML += `<input type="text" id="team${i}" placeholder="Team ${i} Name" value="Team ${String.fromCharCode(64+i)}">`;
+            }
+        }
+
+        function createRoom() {
+            const roomName = document.getElementById('c-roomName').value;
+            if(!roomName) return alert("Enter Room Name");
+            
+            const count = document.getElementById('c-teams').value;
+            const teamNames = [];
+            for(let i=1; i<=count; i++) teamNames.push(document.getElementById(`team${i}`).value);
+
+            const config = {
+                roomName,
+                gameType: document.getElementById('c-gameType').value,
+                teamNames,
+                duration: document.getElementById('c-duration').value
+            };
+
+            socket.emit("create_room", config);
+        }
+
+        socket.on("room_created", (data) => {
+            // Auto join as Lead
+            document.getElementById('j-code').value = data.roomCode;
+            showScreen('screen-join');
+        });
+
+        // --- JOIN FLOW ---
+        function fetchRoomInfo() {
+            myRoomCode = document.getElementById('j-code').value.toUpperCase();
+            myName = document.getElementById('j-name').value;
+            if(!myRoomCode || !myName) return alert("Fill all fields");
+
+            socket.emit("join_room", { roomCode: myRoomCode, playerName: myName, teamName: "Pending" });
+        }
+
+        socket.on("update_lobby", (data) => {
+            // Update Scoreboard
+            const scoreDiv = document.getElementById('scoreboard');
+            scoreDiv.innerHTML = '';
+            for (const [team, score] of Object.entries(data.scores)) {
+                scoreDiv.innerHTML += `<div class="score-row"><span>${team}</span><span style="font-weight:bold; color:var(--secondary);">${score}</span></div>`;
+            }
+
+            document.getElementById('g-roomName').innerText = `${data.config.roomName} (${myRoomCode})`;
+
+            // Show Team Picker if new
+            if (myTeam === "") {
+                const btnDiv = document.getElementById('team-buttons');
+                btnDiv.innerHTML = '';
+                data.config.teamNames.forEach(t => {
+                    const btn = document.createElement('button');
+                    btn.className = "btn";
+                    btn.innerText = "Join " + t;
+                    btn.onclick = () => confirmTeam(t);
+                    btnDiv.appendChild(btn);
+                });
+                showScreen('screen-pick-team');
+            }
+        });
+
+        function confirmTeam(team) {
+            myTeam = team;
+            socket.emit("join_room", { roomCode: myRoomCode, playerName: myName, teamName: team });
+            showScreen('screen-game');
+        }
+
+        // --- GAMEPLAY ---
+        function startTurnSetup() {
+            socket.emit("setup_turn", { roomCode: myRoomCode });
+        }
+
+        socket.on("show_turn_options", () => {
+            showScreen('screen-setup');
+        });
+
+        function confirmOptions() {
+            const type = document.getElementById('t-type').value;
+            const diff = document.getElementById('t-diff').value;
+            socket.emit("get_word", { roomCode: myRoomCode, type, difficulty: diff });
+        }
+
+        socket.on("receive_word", (wordObj) => {
+            showScreen('screen-actor');
+            document.getElementById('actor-word').innerText = wordObj.word;
+            document.getElementById('actor-meta').innerText = `${wordObj.type} • ${wordObj.difficulty}`;
+            document.getElementById('btn-start-act').style.display = "block";
+            document.getElementById('actor-controls').style.display = "none";
+        });
+
+        socket.on("gamer_getting_ready", () => {
+            showScreen('screen-guesser');
+            document.getElementById('guesser-status').innerText = "Actor is preparing...";
+            document.getElementById('guesser-timer').style.display = "none";
+            document.getElementById('guesser-anim').innerText = "🤔";
+        });
+
+        function startActing() {
+            socket.emit("start_acting", { roomCode: myRoomCode });
+        }
+
+        socket.on("game_started", ({ duration }) => {
+            if(document.getElementById('screen-actor').style.display !== 'none') {
+                // Actor View
+                document.getElementById('btn-start-act').style.display = "none";
+                document.getElementById('actor-controls').style.display = "block";
+                startTimer('actor-timer', duration);
+            } else {
+                // Guesser View
+                document.getElementById('guesser-status').innerText = "ACTING IN PROGRESS!";
+                document.getElementById('guesser-timer').style.display = "block";
+                document.getElementById('guesser-anim').innerText = "👀";
+                startTimer('guesser-timer', duration);
+            }
+        });
+
+        let timerInterval;
+        function startTimer(elemId, seconds) {
+            const el = document.getElementById(elemId);
+            el.innerText = seconds;
+            if(timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                seconds--;
+                el.innerText = seconds;
+                if(seconds <= 0) clearInterval(timerInterval);
+            }, 1000);
+        }
+
+        function wordFound() {
+            socket.emit("word_found", { roomCode: myRoomCode });
+        }
+
+        socket.on("turn_ended", (data) => {
+            clearInterval(timerInterval);
+            showScreen('screen-game');
+            if(data.success) {
+                alert(`✅ Word Found! Team ${data.team} gets ${data.score} points!`);
+            } else {
+                alert("⏰ Time's up! No points awarded.");
+            }
+        });
+
+        socket.on("update_scores", (scores) => {
+             const scoreDiv = document.getElementById('scoreboard');
+            scoreDiv.innerHTML = '';
+            for (const [team, score] of Object.entries(scores)) {
+                scoreDiv.innerHTML += `<div class="score-row"><span>${team}</span><span style="font-weight:bold; color:var(--secondary);">${score}</span></div>`;
+            }
+        });
+
+        socket.on("error_msg", (msg) => alert(msg));
+        socket.on("game_in_progress", () => {
+             // Optional: Handle mid-game joins specific logic
+             // For now, the update_lobby syncs state enough
+        });
+
+    </script>
+</body>
+</html>
