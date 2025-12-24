@@ -148,6 +148,7 @@
     <!-- 8. GUESSER SCREEN -->
     <div id="screen-guesser" class="screen">
         <h2 id="guesser-status">Gamer is ready...</h2>
+        <img src="Acting.png" alt="Family Logo" style="max-width: 150px; margin-bottom: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: block;">
         <div class="timer-box" id="guesser-timer" style="display:none; margin-top: 30px;">60</div>
     </div>
 
@@ -308,7 +309,6 @@
                 startTimer('actor-timer', duration);
             } else {
                 document.getElementById('guesser-status').innerText = "ACTING IN PROGRESS!";
-                <img src="Acting.png" alt="Family Logo" style="max-width: 150px; margin-bottom: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: block;">
                 document.getElementById('guesser-timer').style.display = "block";
                 startTimer('guesser-timer', duration);
             }
