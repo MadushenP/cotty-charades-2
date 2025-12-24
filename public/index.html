@@ -9,28 +9,15 @@
     <meta name="theme-color" content="#2D3436">
 
     <style>
-        :root {
-            --primary: #6C5CE7;
-            --secondary: #00CEC9;
-            --dark: #2D3436;
-            --surface: #3a4244;
-            --light: #DFE6E9;
-            --danger: #ff7675;
-            --success: #00b894;
-        }
+        :root { --primary: #6C5CE7; --secondary: #00CEC9; --dark: #2D3436; --surface: #3a4244; --light: #DFE6E9; --danger: #ff7675; --success: #00b894; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            text-align: center;
-            margin: 0; padding: 0;
-            background: var(--dark);
-            color: white;
-            min-height: 100vh;
-            display: flex; flex-direction: column;
-            padding-bottom: env(safe-area-inset-bottom);
+            text-align: center; margin: 0; padding: 0; background: var(--dark); color: white;
+            min-height: 100vh; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom);
         }
-        .screen { display: none; padding: 20px; width: 100%; max-width: 600px; margin: 0 auto; flex-grow: 1; animation: fadeIn 0.3s ease; }
-        .active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .screen { display: none; padding: 20px; width: 100%; max-width: 600px; margin: 0 auto; flex-grow: 1; }
+        .active { display: flex; flex-direction: column; align-items: center; justify-content: center; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
         h1, h2, h3 { color: var(--secondary); margin: 0 0 15px 0; }
@@ -56,12 +43,9 @@
         .timer-box { font-size: 5rem; font-weight: 900; color: var(--danger); font-variant-numeric: tabular-nums; }
         .score-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 1.1rem; }
         #team-inputs { width: 100%; display: grid; gap: 10px; }
-        #preview-banner { background: #e17055; color: white; padding: 5px; font-size: 0.8rem; display: none; }
     </style>
 </head>
 <body>
-
-    <div id="preview-banner">⚠️ Preview / Offline Mode</div>
 
     <!-- 1. LANDING PAGE -->
     <div id="screen-landing" class="screen active">
@@ -108,7 +92,7 @@
     <!-- 4. JOIN ROOM -->
     <div id="screen-join" class="screen">
         <h2>Join Game</h2>
-        <input type="text" id="j-code" placeholder="Room Code (4 Letters)" maxlength="4">
+        <input type="text" id="j-code" placeholder="Room Code (4 Letters)" maxlength="4" style="text-transform:uppercase;">
         <input type="text" id="j-name" placeholder="Your Name">
         <button class="btn" onclick="fetchRoomInfo()">Next</button>
         <button class="btn btn-sec" onclick="showScreen('screen-landing')">Back</button>
@@ -166,70 +150,18 @@
         <div class="timer-box" id="guesser-timer" style="display:none; margin-top: 30px;">60</div>
     </div>
 
-    <!-- SOCKET IO & MOCK LOGIC -->
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- REAL SOCKET LOGIC -->
+    <script src="/socket.io/socket.io.js"></script>
     <script>
-        // --- MOCK SOCKET CLASS (For Preview Mode) ---
-        class MockSocket {
-            constructor() {
-                console.log("MOCK SOCKET INITIALIZED");
-                this.id = "mock-user-" + Math.floor(Math.random()*1000);
-                this.listeners = {};
-                // Default Mock Data
-                this.mockData = {
-                    roomCode: 'TEST',
-                    scores: {'Team A': 0, 'Team B': 0},
-                    config: { roomName: 'Test Room', teamNames: ['Team A', 'Team B'] }
-                };
-            }
-            on(event, callback) { this.listeners[event] = callback; }
-            emit(event, data) {
-                console.log(`Mock Emit: ${event}`, data);
-                // Simulate Server Responses
-                if (event === 'create_room') {
-                    this.mockData.config = data;
-                    this.mockData.scores = {};
-                    data.teamNames.forEach(t => this.mockData.scores[t] = 0);
-                    setTimeout(() => this.trigger('room_created', { roomCode: 'TEST', teamNames: data.teamNames }), 500);
-                }
-                if (event === 'join_room') {
-                    setTimeout(() => this.trigger('update_lobby', { scores: this.mockData.scores, config: this.mockData.config }), 300);
-                }
-                if (event === 'setup_turn') this.trigger('show_turn_options');
-                if (event === 'get_word') {
-                    const words = ["Titanic", "Frozen", "Inception", "Thriller"];
-                    const w = words[Math.floor(Math.random()*words.length)];
-                    this.trigger('receive_word', { word: w, type: data.type, difficulty: data.difficulty });
-                }
-                if (event === 'start_acting') this.trigger('game_started', { duration: 60 });
-                if (event === 'word_found') {
-                    this.mockData.scores['Team A'] += 10; // Mock score update
-                    this.trigger('turn_ended', { success: true, team: 'Team A', score: 10 });
-                    this.trigger('update_scores', this.mockData.scores);
-                }
-            }
-            trigger(event, data) { if (this.listeners[event]) this.listeners[event](data); }
-        }
+        // Initialize Real Socket
+        const socket = io();
 
-        // --- INIT SOCKET ---
-        let socket;
-        if (typeof io !== 'undefined') {
-            try {
-                socket = io(); // Try real connection
-                socket.on("connect_error", () => { useMock(); }); // Fallback if connection fails
-            } catch(e) { useMock(); }
-        } else {
-            useMock();
-        }
-
-        function useMock() {
-            // Only show banner if we haven't already
-            if (document.getElementById('preview-banner').style.display === 'none') {
-                console.warn("Using Mock Socket for Preview");
-                document.getElementById('preview-banner').style.display = 'block';
-                socket = new MockSocket();
-            }
-        }
+        // Debugging
+        socket.on("connect", () => { console.log("Connected to server:", socket.id); });
+        socket.on("connect_error", (err) => { 
+            console.error("Connection failed:", err);
+            alert("Connection Error. Please check if the server is running."); 
+        });
 
         // --- APP LOGIC ---
         let myRoomCode = "";
@@ -243,7 +175,38 @@
             setTimeout(() => active.classList.add('active'), 10);
         }
 
-        // Create Room
+        // --- ADMIN ---
+        async function adminLogin() {
+            const u = document.getElementById('adminUser').value;
+            const p = document.getElementById('adminPass').value;
+            try {
+                const res = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: u, password: p })
+                });
+                const data = await res.json();
+                if(data.success) showScreen('screen-admin-dash');
+                else alert("Invalid Login");
+            } catch(e) { alert("Server Error"); }
+        }
+
+        async function addWords() {
+            const type = document.getElementById('addType').value;
+            const diff = document.getElementById('addDiff').value;
+            const wordsRaw = document.getElementById('addWords').value;
+            try {
+                await fetch('/admin/add-words', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ type, difficulty: diff, wordsRaw })
+                });
+                document.getElementById('admin-msg').innerText = "✅ Words Added!";
+                setTimeout(() => document.getElementById('admin-msg').innerText = "", 2000);
+            } catch(e) { alert("Error adding words"); }
+        }
+
+        // --- GAME CREATE/JOIN ---
         function updateTeamInputs() {
             const count = document.getElementById('c-teams').value;
             const div = document.getElementById('team-inputs');
@@ -252,84 +215,119 @@
         }
 
         function createRoom() {
-            const roomName = document.getElementById('c-roomName').value || "Family Game";
+            const roomName = document.getElementById('c-roomName').value;
+            if(!roomName) return alert("Please enter a room name");
+            
             const count = document.getElementById('c-teams').value;
             const teamNames = [];
             for(let i=1; i<=count; i++) teamNames.push(document.getElementById(`team${i}`).value);
-            socket.emit("create_room", { roomName, teamNames, duration: 60 });
+            
+            // EMIT TO SERVER
+            console.log("Creating room...");
+            socket.emit("create_room", { 
+                roomName, 
+                teamNames, 
+                gameType: document.getElementById('c-gameType').value,
+                duration: document.getElementById('c-duration').value 
+            });
         }
 
-        // Listeners Setup Wrapper
-        setTimeout(() => {
-            if(socket) {
-                socket.on("room_created", (data) => {
-                    document.getElementById('j-code').value = data.roomCode;
-                    showScreen('screen-join');
-                });
+        // LISTENERS
+        socket.on("room_created", (data) => {
+            console.log("Room Created:", data);
+            document.getElementById('j-code').value = data.roomCode;
+            showScreen('screen-join');
+        });
 
-                socket.on("update_lobby", (data) => {
-                    const scoreDiv = document.getElementById('scoreboard');
-                    scoreDiv.innerHTML = '';
-                    for (const [team, score] of Object.entries(data.scores)) {
-                        scoreDiv.innerHTML += `<div class="score-row"><span>${team}</span><span style="font-weight:bold; color:var(--secondary);">${score}</span></div>`;
-                    }
-                    document.getElementById('g-roomName').innerText = `${data.config.roomName} (TEST)`;
-                    
-                    // Show Team Picker
-                    if (myTeam === "") {
-                        const btnDiv = document.getElementById('team-buttons');
-                        btnDiv.innerHTML = '';
-                        data.config.teamNames.forEach(t => {
-                            const btn = document.createElement('button');
-                            btn.className = "btn";
-                            btn.innerText = "Join " + t;
-                            btn.onclick = () => { myTeam = t; showScreen('screen-game'); };
-                            btnDiv.appendChild(btn);
-                        });
-                        showScreen('screen-pick-team');
-                    }
-                });
+        function fetchRoomInfo() {
+            myRoomCode = document.getElementById('j-code').value.toUpperCase();
+            myName = document.getElementById('j-name').value;
+            if(!myRoomCode || !myName) return alert("Fill all fields");
+            socket.emit("join_room", { roomCode: myRoomCode, playerName: myName, teamName: "Pending" });
+        }
 
-                socket.on("show_turn_options", () => showScreen('screen-setup'));
-                
-                socket.on("receive_word", (wordObj) => {
-                    showScreen('screen-actor');
-                    document.getElementById('actor-word').innerText = wordObj.word;
-                    document.getElementById('actor-meta').innerText = `${wordObj.type} • ${wordObj.difficulty}`;
-                    document.getElementById('btn-start-act').style.display = "block";
-                    document.getElementById('actor-controls').style.display = "none";
-                });
-
-                socket.on("game_started", ({ duration }) => {
-                    document.getElementById('btn-start-act').style.display = "none";
-                    document.getElementById('actor-controls').style.display = "block";
-                    startTimer('actor-timer', duration);
-                });
-
-                socket.on("turn_ended", (data) => {
-                    clearInterval(timerInterval);
-                    showScreen('screen-game');
-                    if(data.success) alert(`✅ Word Found! Team ${data.team} scored!`);
-                    else alert("⏰ Time's up!");
-                });
-                
-                socket.on("update_scores", (scores) => {
-                    const scoreDiv = document.getElementById('scoreboard');
-                    scoreDiv.innerHTML = '';
-                    for (const [team, score] of Object.entries(scores)) scoreDiv.innerHTML += `<div class="score-row"><span>${team}</span><span style="font-weight:bold; color:var(--secondary);">${score}</span></div>`;
-                });
+        socket.on("update_lobby", (data) => {
+            const scoreDiv = document.getElementById('scoreboard');
+            scoreDiv.innerHTML = '';
+            for (const [team, score] of Object.entries(data.scores)) {
+                scoreDiv.innerHTML += `<div class="score-row"><span>${team}</span><span style="font-weight:bold; color:var(--secondary);">${score}</span></div>`;
             }
-        }, 500); // Small delay to ensure socket init
+            document.getElementById('g-roomName').innerText = `${data.config.roomName} (${myRoomCode})`;
+            
+            if (myTeam === "") {
+                const btnDiv = document.getElementById('team-buttons');
+                btnDiv.innerHTML = '';
+                data.config.teamNames.forEach(t => {
+                    const btn = document.createElement('button');
+                    btn.className = "btn";
+                    btn.innerText = "Join " + t;
+                    btn.onclick = () => { confirmTeam(t); };
+                    btnDiv.appendChild(btn);
+                });
+                showScreen('screen-pick-team');
+            }
+        });
 
-        function fetchRoomInfo() { socket.emit("join_room", { roomCode: 'TEST', playerName: 'Test', teamName: 'Pending' }); }
-        function startTurnSetup() { socket.emit("setup_turn", {}); }
+        function confirmTeam(team) {
+            myTeam = team;
+            socket.emit("join_room", { roomCode: myRoomCode, playerName: myName, teamName: team });
+            showScreen('screen-game');
+        }
+
+        // --- TURNS ---
+        function startTurnSetup() { socket.emit("setup_turn", { roomCode: myRoomCode }); }
+        socket.on("show_turn_options", () => showScreen('screen-setup'));
+        
         function confirmOptions() { 
             const type = document.getElementById('t-type').value;
             const diff = document.getElementById('t-diff').value;
-            socket.emit("get_word", { type, difficulty: diff }); 
+            socket.emit("get_word", { roomCode: myRoomCode, type, difficulty: diff }); 
         }
-        function startActing() { socket.emit("start_acting", {}); }
-        function wordFound() { socket.emit("word_found", {}); }
+
+        socket.on("receive_word", (wordObj) => {
+            showScreen('screen-actor');
+            document.getElementById('actor-word').innerText = wordObj.word;
+            document.getElementById('actor-meta').innerText = `${wordObj.type} • ${wordObj.difficulty}`;
+            document.getElementById('btn-start-act').style.display = "block";
+            document.getElementById('actor-controls').style.display = "none";
+        });
+
+        socket.on("gamer_getting_ready", () => {
+            showScreen('screen-guesser');
+            document.getElementById('guesser-status').innerText = "Actor is preparing...";
+            document.getElementById('guesser-timer').style.display = "none";
+        });
+
+        function startActing() { socket.emit("start_acting", { roomCode: myRoomCode }); }
+
+        socket.on("game_started", ({ duration }) => {
+            if(document.getElementById('screen-actor').classList.contains('active')) { // Check class instead of display for robustness
+                document.getElementById('btn-start-act').style.display = "none";
+                document.getElementById('actor-controls').style.display = "block";
+                startTimer('actor-timer', duration);
+            } else {
+                document.getElementById('guesser-status').innerText = "ACTING IN PROGRESS!";
+                document.getElementById('guesser-timer').style.display = "block";
+                startTimer('guesser-timer', duration);
+            }
+        });
+
+        function wordFound() { socket.emit("word_found", { roomCode: myRoomCode }); }
+
+        socket.on("turn_ended", (data) => {
+            clearInterval(timerInterval);
+            showScreen('screen-game');
+            if(data.success) alert(`✅ Word Found! Team ${data.team} gets ${data.score} points!`);
+            else alert("⏰ Time's up!");
+        });
+        
+        socket.on("update_scores", (scores) => {
+            const scoreDiv = document.getElementById('scoreboard');
+            scoreDiv.innerHTML = '';
+            for (const [team, score] of Object.entries(scores)) scoreDiv.innerHTML += `<div class="score-row"><span>${team}</span><span style="font-weight:bold; color:var(--secondary);">${score}</span></div>`;
+        });
+        
+        socket.on("error_msg", (msg) => alert(msg));
 
         let timerInterval;
         function startTimer(elemId, seconds) {
@@ -340,13 +338,6 @@
                 seconds--; el.innerText = seconds;
                 if(seconds <= 0) clearInterval(timerInterval);
             }, 1000);
-        }
-
-        // Admin Mock
-        function adminLogin() { showScreen('screen-admin-dash'); }
-        function addWords() { 
-            document.getElementById('admin-msg').innerText = "✅ Words Added (Local)"; 
-            setTimeout(() => document.getElementById('admin-msg').innerText = "", 2000);
         }
     </script>
 </body>
